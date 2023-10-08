@@ -1,11 +1,13 @@
-import { useContext } from 'react'
+import { useContext, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 import colors from '../../utils/style/colors'
 import { Loader } from '../../utils/style/Atoms'
 import { SurveyContext } from '../../utils/context'
-import { useFetch } from '../../utils/hooks'
+import { useSelector, useStore } from 'react-redux'
+import { selectSurvey, selectTheme } from '../../utils/selectors'
+import { fetchOrUpdateSurvey } from '../../features/survey'
 
 const SurveyContainer = styled.div`
   display: flex;
@@ -16,21 +18,24 @@ const SurveyContainer = styled.div`
 const QuestionTitle = styled.h2`
   text-decoration: underline;
   text-decoration-color: ${colors.primary};
+  color: ${({ theme }) => (theme === 'light' ? '#000000' : '#ffffff')};
 `
 
 const QuestionContent = styled.span`
   margin: 30px;
+  color: ${({ theme }) => (theme === 'light' ? '#000000' : '#ffffff')};
 `
 
 const LinkWrapper = styled.div`
   padding-top: 30px;
   & a {
-    color: black;
+    color: ${({ theme }) => (theme === 'light' ? '#000000' : '#ffffff')};
   }
   & a:first-of-type {
     margin-right: 20px;
   }
 `
+
 const ReplyBox = styled.button`
   border: none;
   height: 100px;
@@ -38,7 +43,9 @@ const ReplyBox = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: ${colors.backgroundLight};
+  background-color: ${({ theme }) =>
+    theme === 'light' ? colors.backgroundLight : colors.backgroundDark};
+  color: ${({ theme }) => (theme === 'light' ? '#000000' : '#ffffff')};
   border-radius: 30px;
   cursor: pointer;
   box-shadow: ${(props) =>
@@ -56,50 +63,60 @@ const ReplyWrapper = styled.div`
   flex-direction: row;
 `
 
-
 function Survey() {
   const { questionNumber } = useParams()
   const questionNumberInt = parseInt(questionNumber)
   const prevQuestionNumber = questionNumberInt === 1 ? 1 : questionNumberInt - 1
   const nextQuestionNumber = questionNumberInt + 1
+  const theme = useSelector(selectTheme)
 
-  const { answers, saveAnswers } = useContext(SurveyContext)
+  const { saveAnswers, answers } = useContext(SurveyContext)
 
-   function saveReply(answer) {
+  function saveReply(answer) {
     saveAnswers({ [questionNumber]: answer })
   }
 
-  const { data, isLoading, error } = useFetch(`http://localhost:8000/survey`)
-  const { surveyData } = data
+  const survey = useSelector(selectSurvey)
+  const store = useStore()
+  useEffect(() => {
+    fetchOrUpdateSurvey(store)
+  }, [store])
 
+  const surveyData = survey.data?.surveyData
 
-if (error){
-  return <span>Oups il y eu un problème</span>
-}
+  const isLoading = survey.status === 'void' || survey.status === 'pending'
+
+  if (survey.status === 'rejected') {
+    return <span>Il y a un problème</span>
+  }
 
   return (
     <SurveyContainer>
-      <QuestionTitle>Question {questionNumber}</QuestionTitle>
+      <QuestionTitle theme={theme}>Question {questionNumber}</QuestionTitle>
       {isLoading ? (
-        <Loader />
+        <Loader data-testid="loader" />
       ) : (
-        <QuestionContent>{surveyData && surveyData[questionNumber]}</QuestionContent>
+        <QuestionContent theme={theme} data-testid="question-content">
+          {surveyData && surveyData[questionNumber]}
+        </QuestionContent>
       )}
       <ReplyWrapper>
         <ReplyBox
           onClick={() => saveReply(true)}
           isSelected={answers[questionNumber] === true}
+          theme={theme}
         >
           Oui
         </ReplyBox>
         <ReplyBox
           onClick={() => saveReply(false)}
           isSelected={answers[questionNumber] === false}
+          theme={theme}
         >
           Non
         </ReplyBox>
       </ReplyWrapper>
-      <LinkWrapper>
+      <LinkWrapper theme={theme}>
         <Link to={`/survey/${prevQuestionNumber}`}>Précédent</Link>
         {surveyData && surveyData[questionNumberInt + 1] ? (
           <Link to={`/survey/${nextQuestionNumber}`}>Suivant</Link>
